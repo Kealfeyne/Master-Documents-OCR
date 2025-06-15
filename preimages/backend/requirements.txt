@@ -1,6 +1,10 @@
 fastapi==0.110.1
 requests==2.31.0
 uvicorn==0.29.0
+#
+easyocr==1.7.2
+numpy==1.26.4
+opencv-python==4.11.0.86
 #python-multipart==0.0.9
 #aiofiles==23.2.1
 #clickhouse-connect==0.7.7
