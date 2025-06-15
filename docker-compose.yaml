@@ -1,0 +1,33 @@
+services:
+  backend:
+    environment:
+      BACKEND_PORT: "${BACKEND_PORT}"
+      FRONTEND_PORT: "${FRONTEND_PORT}"
+    container_name: ${BACKEND_CONTAINER_NAME}
+    build:
+      context: backend/
+      args:
+        DOCKER_BACKEND_PREIMAGE_NAME: ${DOCKER_BACKEND_PREIMAGE_NAME}
+    ports:
+      - "${BACKEND_PORT}:${BACKEND_PORT}"
+    networks:
+      - network
+  frontend:
+    environment:
+      BACKEND_PORT: "${BACKEND_PORT}"
+      FRONTEND_PORT: "${FRONTEND_PORT}"
+    container_name: ${FRONTEND_CONTAINER_NAME}
+    build:
+      context: frontend/
+      args:
+        DOCKER_FRONTEND_PREIMAGE_NAME: ${DOCKER_FRONTEND_PREIMAGE_NAME}
+        FRONTEND_PORT: ${FRONTEND_PORT}
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "${FRONTEND_PORT}:${FRONTEND_PORT}"
+    networks:
+      - network
+networks:
+  network:

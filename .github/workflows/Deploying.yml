@@ -1,0 +1,122 @@
+name: Deploying to VM
+on:
+  push:
+    branches:
+      - test
+  pull_request:
+    types: [ closed ]
+    branches:
+      - main
+  workflow_dispatch:
+env:
+  # test ports
+  TEST_BACKEND_PORT: 8002
+  TEST_FRONTEND_PORT: 8001
+
+  # main ports
+  MAIN_BACKEND_PORT: 8006
+  MAIN_FRONTEND_PORT: 8005
+
+  BACKEND_PREIMAGE_PATH: preimages/backend
+  FRONTEND_PREIMAGE_PATH: preimages/frontend
+
+  DOCKERHUB_LOGIN: ${{ secrets.DOCKERHUB_LOGIN }}
+  DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+jobs:
+  BuildingPreimages:
+    if: github.event.pull_request.merged == true && github.ref_name == 'main' || github.ref_name == 'test'
+    name: Build preimages
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@master
+
+      - name: Set up Common env variables
+        run: echo "PROJECT_NAME=`echo ${{ github.event.repository.name }} | tr '[:upper:]' '[:lower:]'`" >> ${GITHUB_ENV}
+
+      - name: Check backend requirements changes
+        id: changed-backend-preimage
+        uses: tj-actions/changed-files@v44
+        with:
+          files: ${{ env.BACKEND_PREIMAGE_PATH }}/requirements.txt
+
+      - name: Check frontend requirements changes
+        id: changed-frontend-preimage
+        uses: tj-actions/changed-files@v44
+        with:
+          files: ${{ env.FRONTEND_PREIMAGE_PATH }}/requirements.txt
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: 'x64'
+
+      - name: Login to dockerhub
+        if: steps.changed-backend-preimage.outputs.any_changed == 'true' || steps.changed-frontend-preimage.outputs.any_changed == 'true'
+        run: echo ${{ env.DOCKERHUB_PASSWORD }} | docker login -u ${{ env.DOCKERHUB_LOGIN }} --password-stdin
+
+      - name: BuildPush new backend preimage
+        if: steps.changed-backend-preimage.outputs.any_changed == 'true'
+        run: |
+          cd ${{ env.BACKEND_PREIMAGE_PATH }}
+          docker build -t ${{ env.DOCKERHUB_LOGIN }}/${{ env.PROJECT_NAME }}-${{ github.ref_name }}-backend-preimage:latest -f Dockerfile .
+          docker push ${{ env.DOCKERHUB_LOGIN }}/${{ env.PROJECT_NAME }}-${{ github.ref_name }}-backend-preimage:latest
+          cd ~
+
+      - name: BuildPush new frontend preimage
+        if: steps.changed-frontend-preimage.outputs.any_changed == 'true'
+        run: |
+          cd ${{ env.FRONTEND_PREIMAGE_PATH }}
+          docker build -t ${{ env.DOCKERHUB_LOGIN }}/${{ env.PROJECT_NAME }}-${{ github.ref_name }}-frontend-preimage:latest -f Dockerfile .
+          docker push ${{ env.DOCKERHUB_LOGIN }}/${{ env.PROJECT_NAME }}-${{ github.ref_name }}-frontend-preimage:latest
+          cd ~
+  DeployingVM:
+    if: github.event.pull_request.merged == true && github.ref_name == 'main' || github.ref_name == 'test'
+    name: Deploying to VM
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: BuildingPreimages
+    steps:
+      - name: Set up Common env variables
+        run: echo "PROJECT_NAME=`echo ${{ github.event.repository.name }} | tr '[:upper:]' '[:lower:]'`" >> ${GITHUB_ENV}
+
+      - name: Set up Test env variables
+        if: github.ref_name == 'test'
+        run: |
+          echo "
+          BACKEND_PORT=${{ env.TEST_BACKEND_PORT }}
+          FRONTEND_PORT=${{ env.TEST_FRONTEND_PORT }}
+          " >> $GITHUB_ENV
+
+      - name: Set up Main env variables
+        if: github.ref_name == 'main'
+        run: |
+          echo "
+          BACKEND_PORT=${{ env.MAIN_BACKEND_PORT }}
+          FRONTEND_PORT=${{ env.MAIN_FRONTEND_PORT }}
+          " >> $GITHUB_ENV
+
+      - name: Deploying to VM
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.PUNKER_USERNAME }}
+          key: ${{ secrets.PUNKER_SSH_KEY_PRIVATE }}
+          passphrase: ${{ secrets.PUNKER_PASSPHRASE }}
+          command_timeout: 30m
+          script: |
+            cd ${{ github.event.repository.name }}/${{ github.ref_name }}
+
+            git pull https://${{ secrets.PUNKER_GITHUB_USERNAME }}:${{ secrets.PUNKER_ACCESS_TOKEN }}@github.com/${{ github.repository }}.git ${{ github.ref_name }}:${{ github.ref_name }}
+            
+            rm .env
+            
+            echo DOCKER_BACKEND_PREIMAGE_NAME=${{ env.DOCKERHUB_LOGIN }}/${{ env.PROJECT_NAME }}-${{ github.ref_name }}-backend-preimage >> .env
+            echo BACKEND_CONTAINER_NAME=${{ env.PROJECT_NAME }}-${{ github.ref_name }}-backend >> .env
+            echo BACKEND_PORT=${{ env.BACKEND_PORT }} >> .env
+            
+            echo DOCKER_FRONTEND_PREIMAGE_NAME=${{ env.DOCKERHUB_LOGIN }}/${{ env.PROJECT_NAME }}-${{ github.ref_name }}-frontend-preimage >> .env
+            echo FRONTEND_CONTAINER_NAME=${{ env.PROJECT_NAME }}-${{ github.ref_name }}-frontend >> .env
+            echo FRONTEND_PORT=${{ env.FRONTEND_PORT }} >> .env
+            
+            sudo docker compose -p ${{ env.PROJECT_NAME }}-${{ github.ref_name }} up --build -d
+            echo y | sudo docker image prune -a

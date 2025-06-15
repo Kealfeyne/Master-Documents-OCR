@@ -1,0 +1,9 @@
+ARG DOCKER_BACKEND_PREIMAGE_NAME
+
+FROM $DOCKER_BACKEND_PREIMAGE_NAME:latest
+
+WORKDIR container/
+
+COPY . .
+
+CMD python api.py

@@ -1,0 +1,14 @@
+fastapi==0.110.1
+requests==2.31.0
+uvicorn==0.29.0
+#python-multipart==0.0.9
+#aiofiles==23.2.1
+#clickhouse-connect==0.7.7
+#opencv-contrib-python==4.8.1.78
+#torch==2.2.0
+#torchvision==0.17.0
+#Pillow==9.4.0
+#PyYAML==6.0.1
+#transformers==4.39.3
+#ultralytics==8.1.47
+#sentencepiece==0.2.0

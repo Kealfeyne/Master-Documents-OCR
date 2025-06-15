@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# env
+# project name / docker compose name
+export PROJECT_NAME=service-cicd
+
+# ports
+export BACKEND_PORT=8006
+export FRONTEND_PORT=8005
+
+export BACKEND_CONTAINER_NAME=$PROJECT_NAME-local-backend
+export FRONTEND_CONTAINER_NAME=$PROJECT_NAME-local-frontend
+
+export DOCKER_BACKEND_PREIMAGE_NAME=$PROJECT_NAME-local-backend-preimage
+export DOCKER_FRONTEND_PREIMAGE_NAME=$PROJECT_NAME-local-frontend-preimage
+
+cd ./preimages/backend
+docker build -t $PROJECT_NAME-local-backend-preimage:latest -f Dockerfile .
+cd ../../
+
+cd ./preimages/frontend
+docker build -t $PROJECT_NAME-local-frontend-preimage:latest -f Dockerfile .
+cd ../../
+
+docker compose -p $PROJECT_NAME-local down
+docker compose -p $PROJECT_NAME-local up --build

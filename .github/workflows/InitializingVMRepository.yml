@@ -1,0 +1,44 @@
+name: Initializing VM repository
+on: workflow_dispatch
+env:
+  PRODUCTION_ENV_NAME: main
+  TEST_ENV_NAME: test
+jobs:
+  InitializingVMRepository:
+    name: Initializing repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Initializing ${{ env.PRODUCTION_ENV_NAME }}
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.PUNKER_USERNAME }}
+          key: ${{ secrets.PUNKER_SSH_KEY_PRIVATE }}
+          passphrase: ${{ secrets.PUNKER_PASSPHRASE }}
+          script: |
+            cd ~
+            mkdir ${{ github.event.repository.name }}
+            
+            cd ~
+            mkdir ${{ github.event.repository.name }}/${{ env.PRODUCTION_ENV_NAME }}
+            cd ${{ github.event.repository.name }}/${{ env.PRODUCTION_ENV_NAME }}
+            git init
+            git pull https://${{ secrets.PUNKER_GITHUB_USERNAME }}:${{ secrets.PUNKER_ACCESS_TOKEN }}@github.com/${{ github.repository }}.git main:main
+      - name: Initializing ${{ env.TEST_ENV_NAME }}
+        if: true
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.PUNKER_USERNAME }}
+          key: ${{ secrets.PUNKER_SSH_KEY_PRIVATE }}
+          passphrase: ${{ secrets.PUNKER_PASSPHRASE }}
+          script: |
+            cd ~
+            mkdir ${{ github.event.repository.name }}/${{ env.TEST_ENV_NAME }}
+            cd ${{ github.event.repository.name }}/${{ env.TEST_ENV_NAME }}
+            git init
+            git pull https://${{ secrets.PUNKER_GITHUB_USERNAME }}:${{ secrets.PUNKER_ACCESS_TOKEN }}@github.com/${{ github.repository }}.git
+            git checkout -b ${{ env.TEST_ENV_NAME }}
+            git remote add origin https://${{ secrets.PUNKER_GITHUB_USERNAME }}:${{ secrets.PUNKER_ACCESS_TOKEN }}@github.com/${{ github.repository }}.git
+            git push origin HEAD
